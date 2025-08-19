@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "baracho-rl"
+version = "0.0.1"
+description = "BARACHO-RL: Business-Aware Reinforcement for Adaptive Constrained Hierarchical Optimization"
+authors = [{name="Carlos Baracho et al.", email="cbaracho2@gmail.com"}]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.24",
+  "pydantic>=2.6",
+  "typer>=0.12",
+]
+
+[project.scripts]
+baracho = "baracho_rl.cli.main:app"

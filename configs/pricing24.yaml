@@ -1,0 +1,7 @@
+env: DynamicPricingEnv
+env_cfg:
+  horizon: 24
+  seasonality: true
+algo: SAC
+policy: GRU
+metrics: [NPV, IRR, CVaR]
