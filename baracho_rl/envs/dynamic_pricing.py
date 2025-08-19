@@ -19,8 +19,12 @@ class DynamicPricingEnv(EnvBase):
         self.unit_cost = unit_cost
         self.elasticity = elasticity
         self.seasonality = seasonality
+        self.external_demand_mult = 1.0  # fator acoplado (ex.: capacidade)
         self.rng = random.Random(rng_seed)
         self.reset()
+
+    def set_external_demand_mult(self, m: float):
+        self.external_demand_mult = max(0.0, float(m))
 
     def reset(self) -> Dict[str, Any]:
         self.t = 0
@@ -34,8 +38,9 @@ class DynamicPricingEnv(EnvBase):
 
     def _demand(self, price: float, t: int) -> float:
         season = self._season_factor(t)
-        # demanda ~ (preço/baseline)^elasticity
+        # demanda ~ (preço/baseline)^elasticity * external
         demand = self.base_demand * season * (price / self.base_price) ** (self.elasticity)
+        demand *= self.external_demand_mult
         # ruído
         demand *= (0.9 + 0.2 * self.rng.random())
         return max(0.0, demand)
@@ -46,6 +51,7 @@ class DynamicPricingEnv(EnvBase):
             "baseline_price": self.base_price,
             "last_price": self._last_price,
             "demand_estimate": self._demand(self._last_price, self.t),
+            "external_mult": self.external_demand_mult,
         }
 
     def step(self, action: Dict[str, float]) -> Tuple[Dict[str, Any], float, bool, Dict[str, Any]]:
