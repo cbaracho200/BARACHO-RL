@@ -1,1 +1,22 @@
 # BARACHO-RL
+
+BARACHO-RL é um framework minimalista (MVP) para prototipar agentes de RL focados em negócios,
+com horizonte longo e métricas financeiras. Esta versão inclui:
+
+- `DynamicPricingEnv` — ambiente simples com sazonalidade e elasticidade-preço
+- `Trainer` — laço de treino e relatório básico (CSV)
+- `AgentBase`, `RandomAgent`, `RuleAgent` — exemplos
+- `Simulator` — stub para usar logs históricos ou gerar dados sintéticos
+- CLI `baracho` com comandos `train`, `simulate`, `report`
+
+> Objetivo: **3 linhas para treinar**, **≤15 linhas para criar um agente customizado**.
+
+## Instalação de desenvolvimento
+```bash
+pip install -e .
+```
+
+## Exemplo rápido
+```bash
+python examples/pricing_quickstart.py
+```
