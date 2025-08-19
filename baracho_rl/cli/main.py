@@ -2,6 +2,7 @@ from __future__ import annotations
 import json, os
 import typer
 from typing import Dict, Any
+from .config_loader import build_from_config
 from ..envs.registry import make_env
 from ..envs.compose import ComposeEnv
 from ..envs.dynamic_pricing import DynamicPricingEnv
@@ -11,18 +12,32 @@ from ..core.trainer import Trainer
 from ..algos.ppo import PPOAgent
 from ..algos.sac import SACAgent
 from ..algos.grpo import GRPOAgent
+from ..algos.grpo_cluster import ClusterGRPOAgent
 from ..refiner.refiner import Refiner
 
 app = typer.Typer(help="BARACHO-RL CLI")
+
+def _make_agent(name: str):
+    return {
+        "PPO": PPOAgent,
+        "SAC": SACAgent,
+        "GRPO": GRPOAgent,
+        "ClusterGRPO": ClusterGRPOAgent,
+    }.get(name, PPOAgent)()
 
 @app.command()
 def train(env: str = "DynamicPricingEnv",
           algo: str = "PPO",
           horizon: int = 24,
           steps: int = 50_000,
-          outdir: str = "runs/last"):
+          outdir: str = "runs/last",
+          config: str = ""):
+    if config:
+        env_obj, algo_from_cfg, extra = build_from_config(config)
+        agent = _make_agent(algo_from_cfg if algo == "PPO" else algo)  # permite override
+        Trainer(env_obj, agent, outdir=outdir).fit(steps=steps).report()
+        return
     if env == "ComposeDemo":
-        # composição pronta: Hiring -> Pricing (demand_mult), Pricing profit -> Cash
         pr = DynamicPricingEnv(horizon=horizon)
         hi = HiringCapacityEnv(horizon=horizon)
         ca = CashManagementEnv(horizon=horizon)
@@ -36,7 +51,7 @@ def train(env: str = "DynamicPricingEnv",
         env_obj = ComposeEnv({"Hiring": hi, "Pricing": pr, "Cash": ca}, coupler=coupler)
     else:
         env_obj = make_env(env, horizon=horizon)
-    agent = {"PPO": PPOAgent, "SAC": SACAgent, "GRPO": GRPOAgent}.get(algo, PPOAgent)()
+    agent = _make_agent(algo)
     Trainer(env_obj, agent, outdir=outdir).fit(steps=steps).report()
 
 @app.command()
@@ -59,26 +74,17 @@ def refine(env: str = "DynamicPricingEnv",
            episodes: int = 40,
            window: int = 3,
            refine_episodes: int = 20,
-           outdir: str = "runs/refined"):
-    # cria fábrica de ambientes para o refiner
+           outdir: str = "runs/refined",
+           config: str = ""):
     def factory():
-        if env == "ComposeDemo":
-            pr = DynamicPricingEnv(horizon=horizon)
-            hi = HiringCapacityEnv(horizon=horizon)
-            ca = CashManagementEnv(horizon=horizon)
-            def coupler(envs, infos):
-                cap = infos.get("Hiring", {}).get("capacity", hi.capacity if hasattr(hi, "capacity") else 100.0)
-                base = hi.base_capacity
-                mult = max(0.2, min(2.0, 0.5 + cap/(base+1e-6)))
-                envs["Pricing"].set_external_demand_mult(mult)
-                profit = infos.get("Pricing", {}).get("revenue", 0.0) - infos.get("Pricing", {}).get("cost", 0.0)
-                envs["Cash"].apply_external_profit(profit)
-            return ComposeEnv({"Hiring": hi, "Pricing": pr, "Cash": ca}, coupler=coupler)
+        if config:
+            env_obj, _, _ = build_from_config(config)
+            return env_obj
+        from ..envs.registry import make_env
         return make_env(env, horizon=horizon)
-    agent = {"PPO": PPOAgent, "SAC": SACAgent, "GRPO": GRPOAgent}.get(algo, GRPOAgent)()
+    agent = _make_agent(algo)
     r = Refiner(window=window, refine_episodes=refine_episodes).refine(factory, agent, episodes=episodes)
     print("RIL:", r)
-    # treino pós-refino
     Trainer(factory(), agent, outdir=outdir).fit(episodes=episodes).report()
 
 if __name__ == "__main__":

@@ -6,14 +6,16 @@ from ..core.base import EnvBase
 class ComposeEnv(EnvBase):
     """Composição de múltiplos ambientes com acoplamentos via 'coupler'.
     - envs: dict name->EnvBase
-    - coupler: callable(envs, last_infos) -> None (pode ajustar envs antes do step)
-    Ação: dict name->subaction; Obs/Info: dict name->sub{obs,info}; Recompensa: soma
+    - weights: dict name->float (pesa recompensa de cada subambiente)
+    - coupler: callable(envs, last_infos) -> Optional[dict] (pode ajustar envs e retornar bônus/penalidade)
+      Ex.: return {"reward_bonus": +x} ou {"reward_penalty": -y} ou {"reward": x}
+    Ação: dict name->subaction; Obs/Info: dict name->sub{obs,info}; Recompensa: soma ponderada + ajuste
     """
-    def __init__(self, envs: Dict[str, EnvBase], coupler: Callable[[Dict[str, EnvBase], Dict[str, Dict[str, Any]]], None] | None = None):
+    def __init__(self, envs: Dict[str, EnvBase], coupler: Callable[[Dict[str, EnvBase], Dict[str, Dict[str, Any]]], dict | None] | None = None, weights: Dict[str, float] | None = None):
         self.envs = OD(envs)
         self.coupler = coupler
+        self.weights = weights or {k: 1.0 for k in self.envs}
         self._last_infos: Dict[str, Dict[str, Any]] = {}
-        # horizonte = min dos horizontes se existirem
         self.horizon = min(getattr(e, "horizon", 10**9) for e in self.envs.values())
 
     def reset(self) -> Dict[str, Any]:
@@ -24,9 +26,9 @@ class ComposeEnv(EnvBase):
         return obs
 
     def step(self, action: Dict[str, Dict[str, float]]) -> Tuple[Dict[str, Any], float, bool, Dict[str, Any]]:
-        # aplica acoplamentos antes do step
+        adjust = None
         if self.coupler:
-            self.coupler(self.envs, self._last_infos)
+            adjust = self.coupler(self.envs, self._last_infos)
         total_reward = 0.0
         next_obs, info = {}, {}
         done_flags = []
@@ -35,8 +37,12 @@ class ComposeEnv(EnvBase):
             nobs, r, done, inf = env.step(subact)
             next_obs[name] = nobs
             info[name] = inf
-            total_reward += r
+            total_reward += self.weights.get(name, 1.0) * r
             done_flags.append(done)
+        if isinstance(adjust, dict):
+            if "reward" in adjust: total_reward += float(adjust["reward"])
+            total_reward += float(adjust.get("reward_bonus", 0.0))
+            total_reward += float(adjust.get("reward_penalty", 0.0))  # tipicamente negativo
         self._last_infos = info
         done = any(done_flags)
         return next_obs, total_reward, done, info

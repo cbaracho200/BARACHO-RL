@@ -10,6 +10,7 @@ authors = [{name="Carlos Baracho et al.", email="cbaracho2@gmail.com"}]
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+  "pyyaml>=6.0",
   "numpy>=1.24",
   "pydantic>=2.6",
   "typer>=0.12",

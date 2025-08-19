@@ -20,3 +20,10 @@ pip install -e .
 ```bash
 python examples/pricing_quickstart.py
 ```
+
+
+## Treino declarativo (Compose + YAML)
+```bash
+baracho train --config configs/compose_pricing_hiring_cash.yaml --steps 20000 --outdir runs/compose_yaml
+baracho refine --config configs/compose_pricing_hiring_cash.yaml --episodes 40 --window 3 --outdir runs/refine_yaml
+```

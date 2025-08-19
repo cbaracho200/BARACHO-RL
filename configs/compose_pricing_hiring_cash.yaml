@@ -1,0 +1,18 @@
+algo: ClusterGRPO
+policy: MLP
+compose:
+  envs:
+    Hiring: {type: HiringCapacityEnv, horizon: 24, base_capacity: 100, cost_per_cap: 1.0, fixed_cost: 50.0}
+    Pricing: {type: DynamicPricingEnv, horizon: 24, seasonality: true, elasticity: -1.2}
+    Cash:    {type: CashManagementEnv, horizon: 24, initial_cash: 10000, rate_monthly: 0.01, admin_cost: 20}
+  weights:
+    Hiring: 0.2   # custo de time importa mas menos que lucro de pricing
+    Pricing: 1.0  # lucro principal
+    Cash:    0.5  # gestão de caixa também conta
+  coupling:
+    - set: Pricing.external_demand_mult
+      expr: "0.5 + Hiring.capacity / (Hiring.base_capacity+1e-6)"
+      clamp: [0.2, 2.0]
+    - call: Cash.apply_external_profit
+      args: ["Pricing.revenue - Pricing.cost"]
+    - reward: " - 0.001 * max(0, Hiring.capacity - 150) "  # penalidade suave por capacidade excessiva
